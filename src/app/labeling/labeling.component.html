@@ -1,0 +1,71 @@
+<div class="container-fluid px-5">
+  <h2 class="mt-4 mb-3 fw-bold text-primary">Image Labeling Dashboard</h2>
+
+  <!-- Order Details Card -->
+  <div class="card p-3 mb-3 w-100" style="max-width: 800px;">
+    <div class="row">
+      <div class="col-md-6 mb-2">
+        <strong>Order ID:</strong> {{ orderId }}
+      </div>
+      <div class="col-md-6 mb-2">
+        <strong>Status:</strong> {{ status }}
+      </div>
+      <div class="col-md-6 mb-2">
+        <strong>Label:</strong> {{ label }}
+      </div>
+      <div class="col-md-6 mb-2">
+        <strong>Accuracy:</strong> {{ accuracy }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Label Dropdown -->
+ <div class="mb-3 w-100" style="max-width: 800px;" *ngIf="isShowLabelDropdown">
+  <label class="form-label"><strong>Select Label</strong></label>
+  <select [(ngModel)]="selectedLabel" (change)="showLabelWarning = false" class="form-select w-25">
+    <option value="">-- Select Label --</option>
+    <option *ngFor="let label of labelList" [value]="label">{{ label }}</option>
+  </select>
+
+  <!-- 🔴 Warning message -->
+  <div *ngIf="showLabelWarning" class="text-danger mt-1">
+    ⚠️ Please select a label before drawing.
+  </div>
+</div>
+
+<!-- Image and Canvas -->
+<div class="position-relative mb-2 w-100">
+  <img #image [src]="images[currentImageIndex]" class="img-fluid" alt="To Label" />
+  <canvas
+    #canvas
+    class="position-absolute top-0 start-0"
+    (mousedown)="startDraw($event)"
+    (mousemove)="draw($event)"
+    (mouseup)="endDraw($event)">
+  </canvas>
+</div>
+
+
+<div class="d-flex mt-2">
+  <button class="btn btn-light me-3" (click)="prevImage()" [disabled]="currentImageIndex === 0">
+    <i class="bi bi-arrow-left-circle fs-5"></i>
+  </button>
+  <span class="fw-bold">{{ currentImageIndex + 1 }} / {{ images.length }}</span>
+  <button class="btn btn-light ms-3" (click)="nextImage()" [disabled]="currentImageIndex === images.length - 1">
+    <i class="bi bi-arrow-right-circle fs-5"></i>
+  </button>
+</div>
+
+  <!-- Action Buttons -->
+  <div class="mt-4">
+    <button *ngIf="isEditable" class="btn btn-primary btn-lg px-4 py-2 me-3" (click)="runDetection()" [disabled]="isDetecting">
+      <span *ngIf="isDetecting" class="spinner-border spinner-border-sm me-2"></span>
+      {{ isDetecting ? 'Detecting…' : 'Run YOLO Detection' }}
+    </button>
+    <button *ngIf="isEditable" class="btn btn-success btn-lg px-4 py-2 me-3" (click)="saveLabeling()">Accept</button>
+    <button *ngIf="isEditable" class="btn btn-danger btn-lg px-4 py-2 me-3" (click)="cancel()">Reject</button>
+  </div>
+
+  <div *ngIf="detectionError" class="text-danger mt-2">{{ detectionError }}</div>
+
+</div>
