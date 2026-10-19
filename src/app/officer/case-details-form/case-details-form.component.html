@@ -1,0 +1,54 @@
+<div class="details-form">
+  <h5>Applicant / Card Details</h5>
+
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label for="cd-customer" class="form-label">Applicant Name <span class="req">*</span></label>
+      <input id="cd-customer" type="text" class="form-control"
+             name="customerName" [(ngModel)]="model.customerName"
+             [disabled]="!editable" (ngModelChange)="onChange()" required />
+    </div>
+
+    <div class="col-md-6">
+      <label for="cd-type" class="form-label">Card Type</label>
+      <select id="cd-type" class="form-select"
+              name="verificationType" [(ngModel)]="model.verificationType"
+              [disabled]="!editable" (ngModelChange)="onChange()">
+        <option value="">Select card type…</option>
+        <option *ngFor="let t of cardTypes" [value]="t">{{ t }}</option>
+      </select>
+    </div>
+
+    <div class="col-md-6">
+      <label for="cd-siteid" class="form-label">Card / Reference Number</label>
+      <input id="cd-siteid" type="text" class="form-control"
+             name="siteId" [(ngModel)]="model.siteId"
+             [class.is-invalid]="showCardError"
+             [disabled]="!editable" (ngModelChange)="onChange()"
+             [placeholder]="cardPlaceholder" />
+      <div class="field-hint" *ngIf="cardHint && !showCardError">{{ cardHint }}</div>
+      <div class="field-error" *ngIf="showCardError">{{ cardHint || 'Invalid card number format.' }}</div>
+    </div>
+
+    <div class="col-md-6">
+      <label for="cd-contact" class="form-label">Contact / Mobile</label>
+      <input id="cd-contact" type="text" class="form-control"
+             name="contact" [(ngModel)]="model.contact"
+             [disabled]="!editable" (ngModelChange)="onChange()" />
+    </div>
+
+    <div class="col-12">
+      <label for="cd-address" class="form-label">Address <span class="req">*</span></label>
+      <input id="cd-address" type="text" class="form-control"
+             name="siteAddress" [(ngModel)]="model.siteAddress"
+             [disabled]="!editable" (ngModelChange)="onChange()" required />
+    </div>
+
+    <div class="col-12">
+      <label for="cd-notes" class="form-label">Notes</label>
+      <textarea id="cd-notes" rows="3" class="form-control"
+                name="notes" [(ngModel)]="model.notes"
+                [disabled]="!editable" (ngModelChange)="onChange()"></textarea>
+    </div>
+  </div>
+</div>

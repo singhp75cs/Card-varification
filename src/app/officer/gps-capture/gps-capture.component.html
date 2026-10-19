@@ -1,0 +1,41 @@
+<div class="gps-capture">
+  <h5>GPS / Location</h5>
+
+  <div class="gps-status mb-2">
+    Status: <span class="badge-status">{{ gpsStatus }}</span>
+    <span *ngIf="latitude != null && longitude != null" class="coords">
+      ({{ latitude }}, {{ longitude }})
+    </span>
+  </div>
+
+  <div *ngIf="!caseRef" class="text-muted small">Save the case first to capture GPS.</div>
+
+  <div *ngIf="caseRef && editable" class="gps-controls">
+    <button type="button" class="btn btn-sm btn-primary me-2" [disabled]="busy"
+            (click)="captureLocation()">Capture location</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary me-2" [disabled]="busy"
+            (click)="manualEntry = !manualEntry">Enter manually</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="busy"
+            (click)="markUnavailable()">Mark unavailable</button>
+
+    <div *ngIf="manualEntry" class="row g-2 mt-2 align-items-end">
+      <div class="col-md-5">
+        <label for="gps-lat" class="form-label">Latitude</label>
+        <input id="gps-lat" type="number" step="any" class="form-control form-control-sm"
+               name="latitude" [(ngModel)]="latitude" />
+      </div>
+      <div class="col-md-5">
+        <label for="gps-lng" class="form-label">Longitude</label>
+        <input id="gps-lng" type="number" step="any" class="form-control form-control-sm"
+               name="longitude" [(ngModel)]="longitude" />
+      </div>
+      <div class="col-md-2">
+        <button type="button" class="btn btn-sm btn-success w-100" [disabled]="busy"
+                (click)="saveManual()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="info" class="small text-success mt-2">{{ info }}</div>
+  <div *ngIf="error" class="small text-danger mt-2">{{ error }}</div>
+</div>

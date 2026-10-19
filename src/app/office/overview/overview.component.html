@@ -1,0 +1,60 @@
+<div class="dashboard container-fluid py-4">
+  <h3 class="mb-4">
+    <i class="bi bi-speedometer2 me-2"></i>Dashboard
+  </h3>
+
+  <div *ngIf="error" class="alert alert-danger">{{ error }}</div>
+
+  <div class="kpi-grid mb-4">
+    <div class="kpi-card kpi-total">
+      <span class="kpi-value">{{ stats.total }}</span>
+      <span class="kpi-label">Total</span>
+    </div>
+    <div class="kpi-card kpi-draft">
+      <span class="kpi-value">{{ stats.draft }}</span>
+      <span class="kpi-label">Draft</span>
+    </div>
+    <div class="kpi-card kpi-submitted">
+      <span class="kpi-value">{{ stats.submitted }}</span>
+      <span class="kpi-label">Submitted</span>
+    </div>
+    <div class="kpi-card kpi-correction">
+      <span class="kpi-value">{{ stats.needsCorrection }}</span>
+      <span class="kpi-label">Needs Correction</span>
+    </div>
+    <div class="kpi-card kpi-rejected">
+      <span class="kpi-value">{{ stats.rejected }}</span>
+      <span class="kpi-label">Rejected</span>
+    </div>
+    <div class="kpi-card kpi-completed">
+      <span class="kpi-value">{{ stats.completed }}</span>
+      <span class="kpi-label">Completed</span>
+    </div>
+  </div>
+
+  <div class="section-card mb-4">
+    <div class="section-title">
+      <i class="bi bi-bar-chart-fill"></i>Status Breakdown
+    </div>
+    <app-pmr-chart></app-pmr-chart>
+  </div>
+
+  <div class="section-card">
+    <div class="section-title">
+      <i class="bi bi-table"></i>All Cases
+    </div>
+    <ag-grid-angular
+      class="grid"
+      [theme]="theme"
+      [rowData]="rowData"
+      [columnDefs]="columnDefs"
+      [defaultColDef]="defaultColDef"
+      [pagination]="true"
+      [paginationPageSize]="10"
+      [paginationPageSizeSelector]="[10, 25, 50]"
+      [animateRows]="true"
+      (gridReady)="onGridReady($event)"
+      (rowClicked)="onRowClicked($event)">
+    </ag-grid-angular>
+  </div>
+</div>

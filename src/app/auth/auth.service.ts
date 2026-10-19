@@ -1,57 +1,69 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, catchError, map } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { environment } from '../../environments/environment';
+
+/** Backend TokenResponse shape (snake_case). */
+interface TokenResponse {
+  access_token: string;
+  user_name: string;
+  user_role: string;
+  user_id: number;
+}
+
+export interface AuthResult {
+  token: string;
+  name: string;
+  role: string;
+}
 
 @Injectable({
   providedIn: 'root',
 })
 export class AuthService {
-  private jsonUrl = 'assets/auth.json';
-
   constructor(private http: HttpClient) {}
 
-  login(email: string, password: string): Observable<{ token: string; name: string }> {
-    // Authenticate against the real backend first and store the real JWT.
+  login(email: string, password: string): Observable<AuthResult> {
+    // Authenticate against the real backend and store the real JWT + role.
+    // No mock/offline fallback: a bad credential or an unreachable backend must
+    // surface a real error rather than silently storing a fake token that the
+    // API would later reject with 401.
     return this.http
-      .post<{ access_token: string; user_name: string }>(
-        `${environment.apiUrl}/auth/login`,
-        { email, password }
-      )
+      .post<TokenResponse>(`${environment.apiUrl}/auth/login`, { email, password })
       .pipe(
-        map(res => {
-          localStorage.setItem('token', res.access_token);
-          localStorage.setItem('username', res.user_name);
-          return { token: res.access_token, name: res.user_name };
-        }),
-        // Fall back to the mock auth.json match when the backend is unreachable.
-        catchError(() => this.loginMock(email, password))
+        map(res => this.storeSession(res.access_token, res.user_name, res.user_role))
       );
   }
 
-  private loginMock(email: string, password: string): Observable<{ token: string; name: string }> {
-    return this.http.get<any[]>(this.jsonUrl).pipe(
-      map(users => {
-        const user = users.find(u => u.email === email && u.password === password);
-        if (user) {
-          // Save only token and name (no password)
-          localStorage.setItem('token', user.token);
-          localStorage.setItem('username', user.name);
-          return { token: user.token, name: user.name };
-        } else {
-          throw new Error('Invalid email or password');
-        }
+  register(name: string, email: string, password: string, role: string): Observable<AuthResult> {
+    return this.http
+      .post<TokenResponse>(`${environment.apiUrl}/auth/register`, {
+        name,
+        email,
+        password,
+        role,
       })
-    );
+      .pipe(
+        map(res => this.storeSession(res.access_token, res.user_name, res.user_role))
+      );
+  }
+
+  private storeSession(token: string, name: string, role: string): AuthResult {
+    const safeRole = role || 'field_officer';
+    localStorage.setItem('token', token);
+    localStorage.setItem('username', name);
+    localStorage.setItem('role', safeRole);
+    return { token, name, role: safeRole };
   }
 
   logout(): void {
     localStorage.removeItem('token');
     localStorage.removeItem('username');
+    localStorage.removeItem('role');
   }
 
- isAuthenticated(): boolean {
-    return !!localStorage.getItem('token'); // ✅ localStorage instead of sessionStorage
+  isAuthenticated(): boolean {
+    return !!localStorage.getItem('token');
   }
 
   getUsername(): string | null {
@@ -60,5 +72,16 @@ export class AuthService {
 
   getToken(): string | null {
     return localStorage.getItem('token');
+  }
+
+  getRole(): string | null {
+    return localStorage.getItem('role');
+  }
+
+  /** Where to send a user after login, based on their role. */
+  homeRoute(): string {
+    const role = this.getRole();
+    if (role) return '/office/overview';
+    return '/login';
   }
 }

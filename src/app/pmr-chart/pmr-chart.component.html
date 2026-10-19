@@ -1,0 +1,38 @@
+<div class="charts-wrapper">
+
+  <!-- ── Bar Chart ──────────────────────────────────────── -->
+  <div class="chart-panel">
+    <div class="chart-panel-header">
+      <div class="chart-panel-title">
+        <span class="chart-icon bar-icon"><i class="bi bi-bar-chart-fill"></i></span>
+        Case Status by Month
+      </div>
+      <span class="chart-badge">Last 4 months</span>
+    </div>
+    <div class="chart-body">
+      <canvas baseChart
+              [data]="barChartData"
+              [options]="barChartOptions"
+              [type]="barChartType">
+      </canvas>
+    </div>
+  </div>
+
+  <!-- ── Pie Chart ──────────────────────────────────────── -->
+  <div class="chart-panel chart-panel-sm">
+    <div class="chart-panel-header">
+      <div class="chart-panel-title">
+        <span class="chart-icon pie-icon"><i class="bi bi-pie-chart-fill"></i></span>
+        Overall Case Status
+      </div>
+    </div>
+    <div class="chart-body chart-body-pie">
+      <canvas baseChart
+              [data]="pieChartData"
+              [options]="pieChartOptions"
+              [type]="pieChartType">
+      </canvas>
+    </div>
+  </div>
+
+</div>

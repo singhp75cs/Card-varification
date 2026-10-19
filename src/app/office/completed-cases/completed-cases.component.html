@@ -1,0 +1,19 @@
+<div class="completed-cases container-fluid py-4">
+  <h3 class="mb-3">Completed Cases</h3>
+
+  <div *ngIf="error" class="alert alert-danger">{{ error }}</div>
+
+  <ag-grid-angular
+    class="grid"
+    [theme]="theme"
+    [rowData]="rowData"
+    [columnDefs]="columnDefs"
+    [defaultColDef]="defaultColDef"
+    [pagination]="true"
+    [paginationPageSize]="10"
+    [paginationPageSizeSelector]="[10, 25, 50]"
+    [animateRows]="true"
+    (gridReady)="onGridReady($event)"
+    (rowClicked)="onRowClicked($event)">
+  </ag-grid-angular>
+</div>

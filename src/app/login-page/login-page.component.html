@@ -1,0 +1,21 @@
+<div class="container mt-5" style="max-width: 400px;">
+  <h3>Login</h3>
+  <form (ngSubmit)="onSubmit()" #loginForm="ngForm">
+    <div class="form-group mb-3">
+      <label for="login-email">Email</label>
+      <input id="login-email" type="email" [(ngModel)]="email" name="email" class="form-control" required />
+    </div>
+
+    <div class="form-group mb-3">
+      <label for="login-password">Password</label>
+      <input id="login-password" type="password" [(ngModel)]="password" name="password" class="form-control" required />
+    </div>
+
+    <button class="btn btn-primary w-100" [disabled]="!loginForm.valid">Login</button>
+
+    <div *ngIf="success" class="alert alert-success mt-3">{{ success }}</div>
+    <div *ngIf="error" class="alert alert-danger mt-3">{{ error }}</div>
+  </form>
+
+  <p class="mt-3">Don't have an account? <a routerLink="/signup" href="/signup">Register here</a></p>
+</div>

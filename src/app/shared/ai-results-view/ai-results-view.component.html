@@ -1,0 +1,82 @@
+<div class="ai-results">
+  <h5 class="ai-title">AI Validation Results</h5>
+
+  <div *ngIf="safeResults.length === 0" class="text-muted small">
+    No AI validation results yet. Submit the case to run validation.
+  </div>
+
+  <div *ngFor="let r of safeResults" class="ai-card">
+    <div class="ai-card-body">
+    <!-- Detected image preview with bounding boxes drawn on it -->
+    <div class="ai-preview" *ngIf="previewUrl(r) as img">
+      <div class="ai-image-wrap">
+        <img [src]="img" alt="Analyzed image" />
+        <div class="ai-box"
+             *ngFor="let d of r.detections"
+             [style.left.%]="d.box.x * 100"
+             [style.top.%]="d.box.y * 100"
+             [style.width.%]="d.box.w * 100"
+             [style.height.%]="d.box.h * 100">
+          <span class="ai-box-label">{{ d.label }} {{ (d.confidence * 100) | number:'1.0-0' }}%</span>
+        </div>
+      </div>
+      <div class="ai-det-count">
+        {{ r.detections.length }} object{{ r.detections.length === 1 ? '' : 's' }} detected
+      </div>
+    </div>
+
+    <div class="ai-card-main">
+    <!-- Photo result -->
+    <ng-container *ngIf="r.photoId != null">
+      <div class="ai-row">
+        <span class="ai-label">Photo quality</span>
+        <span class="ai-value">
+          {{ scorePercent(r.photoQualityScore) }}
+          <span class="badge"
+                [class.badge-pass]="r.photoQualityPass === true"
+                [class.badge-fail]="r.photoQualityPass === false">
+            {{ r.photoQualityPass === true ? 'PASS' : r.photoQualityPass === false ? 'FAIL' : 'N/A' }}
+          </span>
+        </span>
+      </div>
+
+      <div class="ai-row">
+        <span class="ai-label">Required objects</span>
+        <span class="ai-value">
+          <span class="badge"
+                [class.badge-pass]="r.requiredObjectsPass === true"
+                [class.badge-fail]="r.requiredObjectsPass === false">
+            {{ r.requiredObjectsPass === true ? 'PASS' : r.requiredObjectsPass === false ? 'FAIL' : 'N/A' }}
+          </span>
+        </span>
+      </div>
+
+      <ul class="ai-objects" *ngIf="r.requiredObjects && r.requiredObjects.length">
+        <li *ngFor="let o of r.requiredObjects">
+          <i class="bi" [class.bi-check-circle-fill]="o.present" [class.bi-x-circle-fill]="!o.present"></i>
+          {{ o.name }} — {{ o.present ? 'present' : 'missing' }}
+        </li>
+      </ul>
+    </ng-container>
+
+    <!-- Document result -->
+    <ng-container *ngIf="r.documentId != null">
+      <div class="ai-row">
+        <span class="ai-label">Document type (detected)</span>
+        <span class="ai-value">{{ r.documentTypeDetected || '—' }}</span>
+      </div>
+      <div class="ai-row">
+        <span class="ai-label">Confidence</span>
+        <span class="ai-value">{{ confidencePercent(r.documentTypeConfidence) }}</span>
+      </div>
+      <div class="ai-row">
+        <span class="ai-label">OCR</span>
+        <span class="ai-value">{{ r.ocrText ? r.ocrText : 'OCR not available' }}</span>
+      </div>
+    </ng-container>
+
+    <div class="ai-note" *ngIf="r.note">{{ r.note }}</div>
+    </div><!-- /.ai-card-main -->
+    </div><!-- /.ai-card-body -->
+  </div>
+</div>

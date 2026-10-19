@@ -1,0 +1,94 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "reviewDoc": "/Users/irfan/Downloads/DashBoard-GenAI-master/.agents/tasks/pmr-dashboard-client-ready/design-review.md",
+  "findings": [
+    {
+      "id": 1,
+      "severity": "HIGH",
+      "title": "Feature C relies on AG Grid Set Filter, which is Enterprise-only and not registered",
+      "where": "design.md Feature C (FR-7), ~lines 383-392; src/app/config/order-columns.ts (filter: 'agSetColumnFilter')",
+      "problem": "The chip filter uses setFilterModel({ orderStatus: { filterType: 'set', values: [chip] } }) and the existing column uses agSetColumnFilter. ag-grid-community@33.3.2 does not export SetFilterModule (Enterprise-only); main.ts registers only AllCommunityModule, which lacks the Set Filter. The model will not apply and v33 logs an unregistered-module error. The existing agSetColumnFilter is already non-functional in this build, so AC-8 is not actually met.",
+      "fix": "Implement chips as an external filter (isExternalFilterPresent/doesExternalFilterPass + gridApi.onFilterChanged()) which ANDs with the quick filter, OR switch the status column to agTextColumnFilter and use setFilterModel({ orderStatus: { filterType: 'text', type: 'equals', filter: chip } }). Also stop using agSetColumnFilter in order-columns.ts."
+    },
+    {
+      "id": 2,
+      "severity": "HIGH",
+      "title": "gridApi.setQuickFilter(...) does not exist in AG Grid 33.3.2; design keeps it 'unchanged'",
+      "where": "design.md Feature C note (~lines 389-391); src/app/dashboard/dashboard.component.ts::onQuickFilterChanged",
+      "problem": "gridApi.d.ts for 33.3.2 exposes resetQuickFilter() but not setQuickFilter(...). Quick filtering is driven by the quickFilterText grid option (api.setGridOption('quickFilterText', value)). The existing onQuickFilterChanged already throws, and the design preserves it as the basis for AC-13.",
+      "fix": "Change onQuickFilterChanged to this.gridApi?.setGridOption('quickFilterText', event.target.value); and document it as a required change, removing it from the regression-safe list."
+    },
+    {
+      "id": 3,
+      "severity": "MEDIUM",
+      "title": "AuthService login() response type omits user_role / user_id",
+      "where": "design.md Shared block #2 (~lines 250-265); src/app/auth/auth.service.ts",
+      "problem": "login() types the response as { access_token: string; user_name: string }. Reading res.user_role / res.user_id will not compile under tsc --noEmit (AC-19/NFR-5). The fields exist at runtime (backend TokenResponse returns them).",
+      "fix": "Widen the generic to <{ access_token: string; user_name: string; user_role: string; user_id: number }> and keep the mock-fallback guards (?? '' / != null)."
+    },
+    {
+      "id": 4,
+      "severity": "MEDIUM",
+      "title": "Chart not included in refreshAll() despite create/delete needing it to update",
+      "where": "design.md Feature A + Dashboard orchestration + FR-3 chart section",
+      "problem": "The chart self-fetches and owns its state, but refreshAll() refreshes only grid+stats+activity. After create/delete (AC-11/AC-16) the doughnut/bars would stay stale, which conflicts with the stated 'refresh everything' intent.",
+      "fix": "Give PMRChartComponent a public reload() (or @Input() reloadToken) and call it from refreshAll(); update the design's refresh lists to include the chart. If the chart is intentionally left stale, state that and reconcile with AC-11."
+    },
+    {
+      "id": 5,
+      "severity": "MEDIUM",
+      "title": "Chart FR-3 wrapper work does not specify the required subscribe rewrite / imports",
+      "where": "design.md FR-3 chart changes (~lines 290-298); src/app/pmr-chart/pmr-chart.component.ts",
+      "problem": "PMRChartComponent currently uses a next-only subscribe with no error arm. Adding an error state requires converting to { next, error } and adding ErrorBanner/EmptyState/LoadingSpinner to the component imports, neither of which the design specifies while asserting the subscription is otherwise untouched.",
+      "fix": "Specify: add loading/error/empty fields, rewrite subscribe to { next, error } setting those flags, add the three shared state components to imports, and confirm charts-wrapper is only wrapped (COLORS/STATUS_ORDER/options unchanged)."
+    },
+    {
+      "id": 6,
+      "severity": "MEDIUM",
+      "title": "Avg Accuracy KPI derives from rowData; must be reconciled with AC-1 (KPIs not from rows)",
+      "where": "design.md FR-1/FR-2 (~lines 215-245)",
+      "problem": "avgAccuracy = mean of rowData.map(r => r.accuracyNum). AC-1 requires KPI cards not to change with grid page/filter. A naive implementation reading filtered/paginated rows would violate that for this card.",
+      "fix": "State that avgAccuracy averages the full loaded rowData (all orders), recomputed only on (re)fetch, and ignores chips/search/pagination; confirm 'at most 2 decimals' and '—' when empty per AC-3."
+    },
+    {
+      "id": 7,
+      "severity": "MEDIUM",
+      "title": "image_urls storage vs. absUrl normalization needs a store-verbatim clarification",
+      "where": "design.md Feature B submit step 2 (~lines 352-356); src/app/services/order.service.ts::absUrl",
+      "problem": "Each upload returns url '/uploads/<name>' (leading slash). absUrl strips one leading slash on read, so storing verbatim is correct, but an implementer could double-normalize (pre-strip) and break resolution.",
+      "fix": "Add: store r.url verbatim (e.g. /uploads/ab12.jpg); do not strip the leading slash — absUrl handles normalization on read."
+    },
+    {
+      "id": 8,
+      "severity": "NIT",
+      "title": "Activity endpoint correction overstates a conflict with requirements",
+      "where": "design.md Overview (~lines 18-24)",
+      "problem": "The real path /orders/activity is correct (router prefix /orders + /activity; the orders.py docstring saying /activity is wrong). But FR-5 in requirements already says GET /orders/activity, so there is no real conflict to correct.",
+      "fix": "Keep /orders/activity; no action needed beyond dropping the 'requirements phrasing' framing."
+    },
+    {
+      "id": 9,
+      "severity": "NIT",
+      "title": "order_ref guard is cosmetic, not a null guard",
+      "where": "design.md Feature A guards (~lines 322-326); backend schemas.py ActivityOut",
+      "problem": "ActivityOut.order_ref is a non-null string from the real backend, so the 'only if non-empty' chip rule is cosmetic (empty string), not null-safety.",
+      "fix": "Note it as a cosmetic empty-string guard; no change required."
+    },
+    {
+      "id": 10,
+      "severity": "NIT",
+      "title": "ChangeDetectionStrategy.Eager assumed to typecheck but not verified",
+      "where": "design.md 'Non-standard pattern to preserve' (~lines 40-52)",
+      "problem": "Eager is not a real ChangeDetectionStrategy member (only OnPush/Default). The design asserts the project compiles with it; this was not verified by running tsc. New components copying it inherit the risk.",
+      "fix": "Confirm via the AC-19 build (tsc --noEmit -p tsconfig.app.json) rather than assuming; if it only compiles under loose settings, note that."
+    },
+    {
+      "id": 11,
+      "severity": "NIT",
+      "title": "CSV 'user' column exports user_id string (intended scope cut)",
+      "where": "design.md Feature E (~lines 420-430)",
+      "problem": "The CSV user column maps o.user (the user_id string). This matches AC-15 and the Out-of-Scope note; flagged only to prevent an implementer turning it into a name lookup.",
+      "fix": "Keep exporting o.user as-is; do not add user_id->name resolution this iteration."
+    }
+  ]
+}

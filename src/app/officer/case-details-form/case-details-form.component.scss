@@ -1,0 +1,24 @@
+.details-form {
+  color: var(--color-text-primary);
+  h5 { font-weight: 600; margin-bottom: 1rem; color: var(--color-text-primary); }
+  .req { color: #ef4444; }
+  .form-label { font-size: 0.85rem; color: var(--color-text-muted); }
+
+  .field-hint {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    margin-top: 0.25rem;
+  }
+
+  .field-error {
+    font-size: 0.72rem;
+    color: #fca5a5;
+    margin-top: 0.25rem;
+    font-weight: 600;
+  }
+
+  .form-control.is-invalid {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18) !important;
+  }
+}

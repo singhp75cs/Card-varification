@@ -1,0 +1,29 @@
+<div class="case-list container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">My Cases</h3>
+    <button type="button" class="btn btn-primary" (click)="newCase()">
+      <i class="bi bi-plus-lg me-1"></i>New case
+    </button>
+  </div>
+
+  <div class="mb-3">
+    <input type="text" class="form-control" placeholder="Search cases…"
+           (input)="onQuickFilterChanged($event)" />
+  </div>
+
+  <div *ngIf="error" class="alert alert-danger">{{ error }}</div>
+
+  <ag-grid-angular
+    class="grid"
+    [theme]="theme"
+    [rowData]="rowData"
+    [columnDefs]="columnDefs"
+    [defaultColDef]="defaultColDef"
+    [pagination]="true"
+    [paginationPageSize]="10"
+    [paginationPageSizeSelector]="[10, 25, 50]"
+    [animateRows]="true"
+    (gridReady)="onGridReady($event)"
+    (rowClicked)="onRowClicked($event)">
+  </ag-grid-angular>
+</div>

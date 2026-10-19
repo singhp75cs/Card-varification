@@ -1,0 +1,7 @@
+{
+  "task_id": "task-backend-driven-dashboard",
+  "task_description": "Convert the PMR Dashboard Angular frontend to get all orders and labeling data from the real FastAPI backend instead of local mock JSON files, and add a backend endpoint to persist drawn labels. Reuse environment.apiUrl and auth.getToken() everywhere; keep YOLO detection and auth untouched.",
+  "status": "pending",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}

@@ -1,0 +1,200 @@
+// ── AG Grid ─────────────────────────────────────────────────────────────────
+// AG Grid 33+ uses the JS Theming API (see config/grid-theme.ts), not CSS-file
+// themes. No ag-grid stylesheet import is needed; the theme object injects its
+// own styles. Keeping a stray CSS theme here would conflict with the JS theme.
+
+// ── CSS custom properties (3D dark palette) ─────────────────────────────────
+:root {
+  --color-bg-page:      #0b1628;
+  --color-bg-card:      #111e35;
+  --color-bg-card-alt:  #0f1c30;
+  --color-accent-blue:  #3b82f6;
+  --color-accent-cyan:  #06b6d4;
+  --color-accent-green: #22c55e;
+  --color-accent-amber: #f59e0b;
+  --color-accent-red:   #ef4444;
+  --color-accent-purple:#8b5cf6;
+  --color-text-primary: #e2e8f0;
+  --color-text-muted:   #94a3b8;
+  --color-border:       rgba(99, 179, 237, 0.15);
+}
+
+// ── Reset & base ────────────────────────────────────────────────────────────
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+  background: var(--color-bg-page);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  scrollbar-width: thin;
+  scrollbar-color: #1e3a5f var(--color-bg-page);
+}
+
+// ── Scrollbar ───────────────────────────────────────────────────────────────
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-bg-page); }
+::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #2d5494; }
+
+// ── Bootstrap button overrides ───────────────────────────────────────────────
+.btn {
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 5px 16px;
+  transition: all 0.2s ease;
+}
+
+.btn-primary,
+.btn-outline-primary {
+  background: linear-gradient(135deg, #3b82f6, #06b6d4) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+
+  &:hover {
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.55);
+    transform: translateY(-1px);
+  }
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  box-shadow: 0 4px 14px rgba(34, 197, 94, 0.35);
+
+  &:hover {
+    box-shadow: 0 6px 20px rgba(34, 197, 94, 0.5);
+    transform: translateY(-1px);
+  }
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+
+  &:hover {
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
+    transform: translateY(-1px);
+  }
+}
+
+.btn-warning {
+  background: linear-gradient(135deg, #f59e0b, #ea580c) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+}
+
+// ── Form controls global dark theme ─────────────────────────────────────────
+input, select, textarea,
+.form-control, .form-select {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(99, 179, 237, 0.2) !important;
+  border-radius: 10px !important;
+  color: var(--color-text-primary) !important;
+  font-size: 0.85rem;
+
+  &::placeholder { color: var(--color-text-muted) !important; }
+
+  &:focus {
+    outline: none !important;
+    border-color: var(--color-accent-blue) !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18) !important;
+    background-color: rgba(59, 130, 246, 0.06) !important;
+    color: var(--color-text-primary) !important;
+  }
+}
+
+// Dropdown arrow in a readable light tint for .form-select on dark bg
+.form-select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e") !important;
+}
+
+// Native <option> items render with OS colors (black on white) unless forced.
+// Give them a solid dark background so open dropdowns match the theme.
+select option,
+.form-select option {
+  background-color: #0f1c30 !important;
+  color: var(--color-text-primary) !important;
+}
+
+// File input "Browse" button segment (Bootstrap) on dark bg
+input[type="file"]::file-selector-button {
+  background: rgba(59, 130, 246, 0.15) !important;
+  color: var(--color-text-primary) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 4px 10px !important;
+  margin-right: 10px !important;
+}
+
+// Bootstrap form labels readable on dark bg
+.form-label {
+  color: var(--color-text-muted) !important;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+// ── Alert overrides ──────────────────────────────────────────────────────────
+.alert-danger {
+  background: rgba(239, 68, 68, 0.12) !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+  color: #fca5a5 !important;
+  border-radius: 10px !important;
+}
+
+.alert-success {
+  background: rgba(34, 197, 94, 0.12) !important;
+  border: 1px solid rgba(34, 197, 94, 0.3) !important;
+  color: #86efac !important;
+  border-radius: 10px !important;
+}
+
+.alert-info {
+  background: rgba(59, 130, 246, 0.12) !important;
+  border: 1px solid rgba(59, 130, 246, 0.3) !important;
+  color: #7dd3fc !important;
+  border-radius: 10px !important;
+}
+
+// ── Card defaults ────────────────────────────────────────────────────────────
+.card {
+  background: var(--color-bg-card) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4) !important;
+  color: var(--color-text-primary) !important;
+}
+
+// ── Typography helpers ───────────────────────────────────────────────────────
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+a {
+  color: var(--color-accent-blue);
+  text-decoration: none;
+  transition: color 0.2s;
+
+  &:hover { color: var(--color-accent-cyan); }
+}
+
+// ── Utility: 3D glow shadow ──────────────────────────────────────────────────
+.glow-blue   { box-shadow: 0 0 20px rgba(59, 130, 246, 0.45); }
+.glow-green  { box-shadow: 0 0 20px rgba(34, 197, 94,  0.45); }
+.glow-red    { box-shadow: 0 0 20px rgba(239, 68, 68,  0.45); }
+.glow-purple { box-shadow: 0 0 20px rgba(139, 92, 246, 0.45); }
+
+

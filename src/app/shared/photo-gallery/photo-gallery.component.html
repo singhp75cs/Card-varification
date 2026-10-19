@@ -1,0 +1,12 @@
+<div class="photo-gallery">
+  <div *ngIf="safePhotos.length === 0" class="text-muted small">No photos attached.</div>
+  <div class="gallery-grid">
+    <figure class="gallery-item" *ngFor="let p of safePhotos">
+      <img [src]="absUrl(p.url)" [alt]="p.caption || p.originalName || 'Site photo'" />
+      <figcaption>
+        <span class="caption">{{ p.caption || p.originalName || 'Photo' }}</span>
+        <span class="category" *ngIf="p.category">{{ p.category }}</span>
+      </figcaption>
+    </figure>
+  </div>
+</div>

@@ -1,96 +1,161 @@
-# Implementation Plan — Wire YOLO detection into the Angular labeling page
+# Implementation Plan — Wire PMR Dashboard to the real FastAPI backend (orders + labeling)
 
-## Context discovered during exploration
+Goal: OrderService and LabelingService must read/write the live FastAPI backend
+(`environment.apiUrl`, default `http://localhost:8000`) using `auth.getToken()` for
+Bearer auth, instead of the mock JSON files in `src/assets`. Add one backend
+endpoint to persist drawn labels. Keep YOLO detection and auth untouched.
 
-- Project: Angular 22 standalone-components frontend + FastAPI/YOLOv8 backend (SQLite `pmr_dashboard.db`).
-- Build/test commands: frontend `npm install` + `npx ng build` (default config is `production`; do NOT run `ng serve`). Backend: venv + `pip install -r backend/requirements.txt` + `uvicorn main:app --port 8000` run from inside `backend/`.
-- `provideHttpClient()` is ALREADY present in `src/app/app.config.ts` — no change needed there.
-- `src/environments/environment.ts` has only `{ production: false }`. `environment.prod.ts` has `apiBaseUrl: 'https://api.example.com'`. **angular.json has NO `fileReplacements`**, so `environment.prod.ts` is never swapped in — `ng build` always compiles `environment.ts`. The service therefore imports from `environments/environment` and the real value must live in `environment.ts`.
-- Backend `/detect` (router prefix `/detect`, `@router.post("")`) requires auth via `get_current_user`, which uses `OAuth2PasswordBearer` → expects header `Authorization: Bearer <jwt>`. The JWT is decoded with `SECRET_KEY` (`.env`: `pmr-dashboard-super-secret-key-change-in-production`) / `HS256`, and `sub` must be a valid active `User.id`. **There is no dev/bypass path.**
-- `yolo.py` ALREADY returns normalized 0..1 coords (`x,y` = top-left fraction, `width,height` = fraction). The `DetectionBox`/`YoloResult` contract is satisfied. **No backend code change is required.**
+Design decisions (made during exploration, grounded in code):
+- `dashboard.component.ts` is the ONLY consumer of `OrderService` (via `getLabelOrders()`;
+  `getOrders()` is unused). The chart uses a *separate* `StatusChartService` reading
+  `assets/dataChart.json` — OUT OF SCOPE, do not touch.
+- `labeling.component.ts` currently imports only `DetectionService`; wiring in
+  `LabelingService` (load existing labels, real save, real upload) is net-new there.
+- Backend `OrderOut` has `user_id` (int, nullable) but NO user name. The grid shows a
+  `user` column, so map `user_id` → `String(user_id ?? '')`. Keep the camelCase `Order`
+  interface so the grid's `ORDER_COLUMNS` (orderId/orderType/orderStatus/label/user/
+  accuracy/comment) keep working unchanged.
+- `accuracy` is a `float` on the backend but the grid/labeling just display it; map to a
+  string for display parity with the old `"90:00%"` style is unnecessary — pass the number
+  through as-is (ag-grid renders numbers fine). Keep `Order.accuracy: string` by coercing
+  to string to avoid changing `order-columns.ts`.
+- Coordinate contract: `Detection` rows store NORMALIZED 0..1 coords; the labeling canvas
+  works in PIXELS. Frontend converts px→norm before PUT (divide by live canvas w/h) and
+  norm→px when loading (multiply by live canvas w/h). This mirrors the existing
+  `runDetection()` conversion already in `labeling.component.ts`.
+- Backend change is additive: one new endpoint `PUT /orders/{order_id}/labels` + one new
+  schema `LabelBoxIn`, following the exact delete-then-insert pattern from
+  `yolo.py::detect_order_images` and the `_log` helper in `orders.py`.
 
-### Auth finding and chosen approach (concrete)
-
-Finding: `src/app/auth/auth.service.ts` is mock-only. `login()` reads `src/assets/auth.json`, matches email+password, and stores a FAKE token (e.g. `fake-jwt-token-123`) in `localStorage['token']` + name in `localStorage['username']`. `getToken()` returns `localStorage['token']`. That fake token is NOT a real JWT and `jwt.decode` in `backend/routers/auth.py` will reject it → every `/detect` call would 401. So reusing only the stored mock token does NOT authenticate against the real backend.
-
-Chosen approach (minimal, reuses existing storage): Upgrade `AuthService.login()` to call the REAL backend `POST /auth/login` first (JSON body `{ email, password }`, which `LoginRequest` accepts), and on success store the returned `access_token` under the SAME existing key `localStorage['token']` and `user_name` under `localStorage['username']`. On network/backend failure, fall back to the current `auth.json` mock match (preserves offline/dev behavior and existing tests). The seed users in `backend/seed.py` use the SAME emails as `auth.json` (`eve.holt@reqres.in`, `john@example.com`, `bob.doe@example.com`) with password `pwd`, so the same credentials that work in the mock also work against the real backend once `python seed.py` has been run. `DetectionService` reads the token via `AuthService.getToken()` (unchanged key) and sends `Authorization: Bearer <token>`. No new storage key, no new auth mechanism.
-
-Operational prerequisite for a real-token path to actually authenticate: `backend/seed.py` must have been run so matching users exist. This is a run step, not a code change.
-
-### Backend change needed?
-
-No code change. `yolo.py` already emits the normalized contract and `/auth/login` already issues JWTs. The plan touches the backend only to verify it runs (see verification). If, during verification, the reviewer finds the normalized contract is somehow unmet, that would be the only justification to touch `yolo.py` — exploration shows it is already met, so expect no change.
-
-### Scope note
-
-This is a single cohesive feature: a detection service, the labeling-component UI that consumes it, the env/config wiring it imports, and the login upgrade that makes the token real. These pieces are mutually dependent (the component needs the service; the service needs the token; the token needs the login upgrade), so the work is implemented as one ordered sequence rather than split into independent features.
-
----
-
-# Implementation Plan
-
-- [ ] 1. Add `apiUrl: 'http://localhost:8000'` to the dev environment and a matching entry to the prod environment so the detection service has a stable base URL to import.
-      What: In `environment.ts` add `apiUrl: 'http://localhost:8000'` to the exported object. In `environment.prod.ts` add `apiUrl: 'http://localhost:8000'` alongside the existing `apiBaseUrl` (leave `apiBaseUrl` untouched to avoid breaking anything that reads it). Do not add `fileReplacements` to angular.json — out of scope and the service reads `environment.ts` which is what the build compiles.
-      Files: src/environments/environment.ts, src/environments/environment.prod.ts
-      Verify: `npx ng build` compiles with no TypeScript error referencing `environment` (full build run in step 5; this step just must not introduce a type error).
-
-- [ ] 2. Create the detection service with the YOLO TS interfaces and a `detectImage` method that POSTs multipart form-data with the Bearer token.
-      What: Create `DetectionService` (`@Injectable({ providedIn: 'root' })`, constructor-injected `HttpClient` and `AuthService`, matching `order.service.ts` style). Define exported interfaces:
-      `export interface DetectionBox { label: string; confidence: number; x: number; y: number; width: number; height: number; }`
-      `export interface YoloResult { image_url: string; detections: DetectionBox[]; saved_path: string; }`
-      Method `detectImage(file: Blob | File, orderId?: string): Observable<YoloResult>`: build a `FormData` with `file` (append as `('file', file, 'image.jpg')` so a bare Blob gets a filename) and, when `orderId` is provided, `order_id`; read the token via `this.auth.getToken()`; set `headers = new HttpHeaders(token ? { Authorization: 'Bearer ' + token } : {})`; `return this.http.post<YoloResult>(`${environment.apiUrl}/detect`, formData, { headers })`. Do NOT set `Content-Type` manually (let the browser set the multipart boundary).
-      Files: src/app/services/detection.service.ts
-      Verify: `npx ng build` (step 5) — service compiles with no TS errors.
-
-- [ ] 3. Upgrade `AuthService.login()` to authenticate against the real backend and store the real JWT, falling back to the existing mock on failure; keep `getToken`/`logout`/`isAuthenticated`/`getUsername` unchanged.
-      What: Change `login(email, password)` to first `this.http.post<{ access_token: string; user_name: string }>(`${environment.apiUrl}/auth/login`, { email, password })` and `pipe(map(...))` to store `access_token` → `localStorage['token']` and `user_name` → `localStorage['username']`, returning `{ token, name }`. Wrap with `catchError` that falls back to the current `assets/auth.json` match logic (preserved verbatim) so offline/dev and the existing `auth.service.spec.ts` still pass. Import `environment` from `../../environments/environment` and `HttpHeaders`/`catchError`/`of` as needed. The `localStorage` key stays `'token'` so `DetectionService` and `authGuard` keep working unchanged.
-      Files: src/app/auth/auth.service.ts
-      Verify: `npx ng build` (step 5) — compiles with no TS errors; existing `auth.service.spec.ts` logic (mock fallback) remains satisfiable.
-
-- [ ] 4. Add the "Run YOLO Detection" button and its handler to the labeling component: fetch the current image as a Blob, call the service, convert normalized boxes to canvas pixels, push into `boxes[currentImageIndex]`, redraw; with loading + error state. Manual drawing stays untouched.
-      What:
-      - `.ts`: inject `DetectionService` in the constructor (keep existing `ActivatedRoute`). Add fields `isDetecting = false;` and `detectionError = '';`. Add `async runDetection(): Promise<void>` that: returns early if `!this.isEditable` or `this.isDetecting`; sets `isDetecting = true`, `detectionError = ''`; `const src = this.images[this.currentImageIndex];` guard empty; `const resp = await fetch(src);` then `const blob = await resp.blob();` (handles data/asset/remote URLs the same way); call `this.detection.detectImage(blob, this.orderId)` and subscribe/`firstValueFrom`. On success: guard `result?.detections?.length`; for each detection guard that `x,y,width,height,label` are present/finite, compute `px_x = box.x * canvas.width`, `px_y = box.y * canvas.height`, `px_w = box.width * canvas.width`, `px_h = box.height * canvas.height` using `this.canvasRef.nativeElement`, push `{ x: px_x, y: px_y, w: px_w, h: px_h, label: box.label }` into `this.boxes[this.currentImageIndex]` (ensure the array exists), then `this.drawBoxes()`. On error: set a user-facing `detectionError` message mapping statuses — 401 → "Not authorized. Please log in again.", 503 → "Detection model unavailable. Try again shortly.", 0/unknown → "Could not reach the detection service." Always clear `isDetecting` in a `finally`. Do NOT modify `startDraw/draw/endDraw/drawBoxes/resizeCanvas` logic.
-      - `.html`: in the existing Action Buttons `<div class="mt-4">`, add before/with the Accept button: `<button *ngIf="isEditable" class="btn btn-primary btn-lg px-4 py-2 me-3" (click)="runDetection()" [disabled]="isDetecting"><span *ngIf="isDetecting" class="spinner-border spinner-border-sm me-2"></span>{{ isDetecting ? 'Detecting…' : 'Run YOLO Detection' }}</button>` and an error line `<div *ngIf="detectionError" class="text-danger mt-2">{{ detectionError }}</div>`.
-      - `.scss`: no new rules required (reuses existing `.text-danger` and Bootstrap button classes); only add a rule if a spacing tweak is needed, keeping the existing style.
-      Files: src/app/labeling/labeling.component.ts, src/app/labeling/labeling.component.html, src/app/labeling/labeling.component.scss
-      Verify: `npx ng build` (step 5) — compiles with no TS/template errors.
-
-- [ ] 5. Verify the frontend builds cleanly end to end.
-      What: Install deps and run a production build.
-      Files: (none)
-      Verify: `npm install` then `npx ng build` from the repo root (`/Users/irfan/Downloads/DashBoard-GenAI-master`) completes with exit code 0 and NO TypeScript/template errors. Do NOT run `ng serve`. (A pre-existing `anyComponentStyle` budget warning is acceptable; TS errors are not.)
-
-- [ ] 6. Verify the backend runs and the `/detect` route is registered (operational verification; no backend code change expected).
-      What: Create venv, install backend deps, seed the DB, start uvicorn, confirm health; confirm `/detect` is registered.
-      Files: (none; running `python seed.py` only populates the SQLite DB)
-      Verify: from `/Users/irfan/Downloads/DashBoard-GenAI-master/backend`: `python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`, then `python seed.py` (expect "Seed complete"), then `uvicorn main:app --port 8000` in the background and `curl -s http://localhost:8000/health` returns `{"status":"healthy"}`.
-      Fallback (if `ultralytics`/`torch` install is too heavy or fails to install in the environment): skip the full inference stack and instead confirm the route is registered — `curl -s http://localhost:8000/openapi.json | grep -q '"/detect"'` (or open `/docs`) returns a match, proving the YOLO router is mounted. The model only loads lazily on the first `/detect` call, so route registration does not require torch. Document in findings whether the full stack installed or the fallback was used.
+Build/verify commands (discovered):
+- Frontend: `npx ng build --configuration development` (Angular 22, strict + strictTemplates).
+- Backend: no pytest in `requirements.txt`; verify by running `uvicorn main:app --port 8000`
+  from `backend/` and exercising endpoints with `curl` + a real JWT from `/auth/login`.
+- `python -c "import main"` from `backend/` is a cheap import-sanity check for the Python edits.
 
 ---
 
-## Verification results (iteration 1 — actually run)
+- [ ] 1. BACKEND: add the `LabelBoxIn` schema.
+      Add to `backend/schemas.py`, after the `DetectionBox`/`DetectionOut` block (near the
+      Detection section), a Pydantic v2 model:
+      `class LabelBoxIn(BaseModel): label: str; confidence: float = 1.0; x: float; y: float; width: float; height: float; image_path: str = ""`.
+      Coords are documented as NORMALIZED 0..1. No wrapper model needed — the endpoint
+      accepts `List[LabelBoxIn]` directly.
+      Files: `backend/schemas.py`
+      Verify: `cd backend && python -c "import schemas; schemas.LabelBoxIn(label='x', x=0.1, y=0.1, width=0.2, height=0.2)"` prints no error.
 
-Environment note: the system default `node` is v20.20.2, which Angular CLI rejects (requires >= v22). nvm had v22.23.3 installed; all frontend builds below were run under `nvm use 22.23.3`.
+- [ ] 2. BACKEND: re-export `LabelBoxIn` from the models package (keep in sync).
+      Add `LabelBoxIn` to the `from schemas import (...)` list and `__all__` in
+      `backend/models/schemas.py`, and to the `from .schemas import (...)` block and
+      `__all__` in `backend/models/__init__.py` (place it near `DetectionBox`/`DetectionOut`).
+      Files: `backend/models/schemas.py`, `backend/models/__init__.py`
+      Verify: `cd backend && python -c "from models import LabelBoxIn; from models.schemas import LabelBoxIn"` exits 0.
 
-### Frontend
+- [ ] 3. BACKEND: add `PUT /orders/{order_id}/labels` endpoint.
+      In `backend/routers/orders.py`: import `LabelBoxIn` on the existing
+      `from schemas import ...` line. Add an endpoint below `get_detections`:
+      `@router.put("/{order_id}/labels", response_model=OrderOut)` taking
+      `order_id: str`, `body: List[LabelBoxIn]`, `db`, `current = Depends(get_current_user)`.
+      Behavior: look up order by `order_id` (404 if missing); delete existing
+      `Detection` rows where `order_id_fk == order.id` (same as yolo bulk-clear);
+      insert one `Detection` per box (`order_id_fk=order.id`, `image_path=b.image_path or ""`,
+      `label`, `confidence`, `x`, `y`, `width`, `height`); `db.commit()`; `db.refresh(order)`;
+      call `_log(db, current.name, f"Saved {len(body)} labels for order {order_id}", order_id, "success")`;
+      return `order` (serialized as `OrderOut` with fresh `detections`).
+      Docstring MUST state the normalized-0..1 coordinate contract and that the frontend
+      converts px↔norm.
+      Files: `backend/routers/orders.py`
+      Verify: `cd backend && python -c "import main"` exits 0 (router imports and mounts).
+      Then live: start `uvicorn main:app --port 8000`, obtain a token via
+      `curl -s -X POST localhost:8000/auth/login -H 'Content-Type: application/json' -d '{"email":"...","password":"..."}'`,
+      and `curl -X PUT localhost:8000/orders/<id>/labels -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '[{"label":"Car","x":0.1,"y":0.1,"width":0.2,"height":0.3}]'`
+      returns 200 with an `OrderOut` whose `detections` contains the posted box; a second
+      PUT with a different list REPLACES (not appends) the detections.
 
-- `node_modules` was already present (no `npm install` needed).
-- `npx ng build` (default = production): compilation succeeded with NO TypeScript/template errors; all chunks built, including `labeling-component`. The build's non-zero gate is a PRE-EXISTING `initial` bundle-size budget: initial total 1.95 MB vs the `maximumError: "1mb"` in `angular.json` (driven by Bootstrap/ag-grid/charts, not this feature — the change adds only a small service + method). This budget threshold is pre-existing config, unrelated to the change.
-- `npx ng build --configuration development` (no budgets): **exit 0**, "Application bundle generation complete." This confirms clean TS/template compilation of the new `DetectionService`, the `AuthService` login upgrade, and the labeling-component button/handler. Output location dist was removed as a temp artifact.
+- [ ] 4. FRONTEND: rewrite `OrderService` to use the backend.
+      Replace mock JSON reads in `src/app/services/order.service.ts`. Inject `AuthService`
+      and import `environment`. Keep the camelCase `Order` interface (grid depends on it).
+      Add a private `authHeaders()` returning `HttpHeaders` with `Authorization: Bearer <token>`
+      when a token exists (reuse the `detection.service.ts` pattern). Add a private
+      `mapOrder(o: any): Order` that maps backend `OrderOut`:
+      `orderId=o.order_id`, `orderType=o.order_type`, `orderStatus=o.order_status`,
+      `comment=o.comment ?? ''`, `user=String(o.user_id ?? '')`, `accuracy=String(o.accuracy ?? '')`,
+      `label=o.label ?? ''`, and `imageUrl` = split `o.image_urls` (comma-separated string;
+      guard null/empty) into an array, prefixing each path that starts with `/uploads` or
+      is relative with `environment.apiUrl` to build absolute URLs (leave `http(s)://` and
+      `assets/` paths as-is). Implement:
+      `getLabelOrders(): Observable<Order[]>` → GET `${apiUrl}/orders` with headers, `.pipe(map(list => (list ?? []).map(mapOrder)))`.
+      Also provide `getOrders()` as an alias returning the same (keeps any future caller working),
+      plus `getStats()` GET `/orders/stats`, `getOrder(id)` GET `/orders/{id}` (mapped),
+      `createOrder(body)` POST `/orders`, `updateOrder(id, body)` PUT `/orders/{id}` — all with
+      auth headers. Remove `ordersUrl`/`jsonUrl` fields. Treat responses as untrusted (null guards).
+      Files: `src/app/services/order.service.ts`
+      Verify: covered by step 7 build.
 
-### Backend
+- [ ] 5. FRONTEND: rewrite `LabelingService` to use the backend.
+      In `src/app/services/labeling.service.ts`: inject `AuthService`, import `environment`,
+      add the same `authHeaders()` helper. Update interfaces: keep `LabelBox` but align to
+      backend by adding optional `confidence?: number` and `image_path?: string` (keep
+      `x,y,w,h,label` so the component compiles). Remove `jsonUrl` and
+      `getLabelingData()`/`fake-labels.json`. Implement:
+      `getLabelsByOrderId(orderId): Observable<DetectionOut-like[]>` → GET
+      `${apiUrl}/orders/${orderId}/detections` with headers; return raw stored boxes
+      (NORMALIZED coords `{label, confidence, x, y, width, height, image_path}`), null-guarded
+      to `[]`. The caller converts normalized→pixel.
+      `saveLabeling(orderId, labels): Observable<any>` → real PUT
+      `${apiUrl}/orders/${orderId}/labels` with headers, body = the normalized box list
+      (shape `{label, confidence?, x, y, width, height, image_path?}`). Remove the setTimeout stub.
+      `uploadImage(file: File): Observable<UploadResult>` → real POST
+      `${apiUrl}/uploads/single` with `FormData` field `file` and auth headers (no manual
+      Content-Type). Define/return an `UploadResult`-shaped interface `{filename, original_name,
+      url, size, content_type}` with `url` left as returned (caller prefixes apiUrl for absolute).
+      Remove the setTimeout stub.
+      Files: `src/app/services/labeling.service.ts`
+      Verify: covered by step 7 build.
 
-- Created temp venv `backend/.venv`, upgraded pip, `pip install -r requirements.txt` — **full stack installed successfully**, including `torch==2.8.0`, `torchvision==0.23.0`, and `ultralytics==8.2.18` (Python 3.9.6 on macOS arm64).
-- `python seed.py` **failed** due to a pre-existing dependency-pin incompatibility: `passlib==1.7.4` with the resolved `bcrypt==5.0.0` raises `ValueError: password cannot be longer than 72 bytes` during passlib's bcrypt backend self-test. requirements.txt pins passlib but not bcrypt, so a newer bcrypt was pulled in. This is an environment/pinning issue, NOT caused by this change, and does not affect route registration (the YOLO model and auth both load/verify lazily). Seeding is a run step, not a code change in scope.
-- Started `uvicorn main:app --port 8000`: startup completed ("Application startup complete").
-- `curl -s http://localhost:8000/health` → `{"status":"healthy"}` ✅
-- `/detect` route registration confirmed via `curl -s http://localhost:8000/openapi.json`: paths include `/detect`, `/detect/order/{order_id}` (and `/orders/{order_id}/detections`). The POST `/detect` endpoint the frontend calls is mounted. ✅
-- Real YOLO inference was NOT exercised (no live /detect POST run), so no claim is made that inference works end to end; route registration + health were verified instead. The normalized-coordinate contract in `yolo.py`/`schemas.py` was confirmed by reading the code (x,y,width,height normalized 0..1, matching the TS interfaces) — no backend code change was required or made.
-- Cleanup: uvicorn stopped, temp `backend/.venv`, the generated empty `backend/pmr_dashboard.db`, the `dist/` build output, and `/tmp` helper/log files all removed.
+- [ ] 6. FRONTEND: wire consumers to the new Observables + px↔norm + error state.
+      `src/app/dashboard/dashboard.component.ts`: `getLabelOrders()` now returns mapped
+      `Order[]`; keep the existing `.subscribe({ next, error })` but add an `errorMessage`
+      field set in the `error` handler (distinguish 401 → "Please log in again" vs other →
+      "Could not load orders"). No template change strictly required, but set the field so a
+      backend-down/401 state is observable.
+      `src/app/labeling/labeling.component.ts`: inject `LabelingService`. On init (after
+      images resolved), call `labeling.getLabelsByOrderId(this.orderId)` and, once the canvas
+      is sized, convert each stored NORMALIZED box to pixels
+      (`x: box.x*canvas.width, y: box.y*canvas.height, w: box.width*canvas.width,
+      h: box.height*canvas.height, label: box.label`) into `boxes[currentImageIndex]`, guarding
+      non-finite values (mirror `runDetection()`); then `drawBoxes()`. Set a `loadError` field on failure.
+      Rewrite `saveLabeling()` to actually persist: take `boxes[currentImageIndex]`, convert
+      px→norm (`x: b.x/canvas.width, y: b.y/canvas.height, width: b.w/canvas.width,
+      height: b.h/canvas.height, label: b.label, confidence: 1`), guard `canvas.width>0 &&
+      canvas.height>0`, and call `labeling.saveLabeling(this.orderId, normBoxes).subscribe({...})`,
+      setting a `saveError`/success flag instead of the current `alert()`/`console.log` mocks.
+      Keep manual drawing and the `runDetection()` YOLO button unchanged. Keep `cancel()` clearing boxes.
+      If the template needs it, add `*ngIf` error spans next to existing `detectionError` using
+      the new fields (`loadError`, `saveError`) in `labeling.component.html` and `errorMessage`
+      in `dashboard.component.html`.
+      Files: `src/app/dashboard/dashboard.component.ts`, `src/app/dashboard/dashboard.component.html`,
+      `src/app/labeling/labeling.component.ts`, `src/app/labeling/labeling.component.html`
+      Verify: covered by step 7 build.
 
-## Notes / assumptions
+- [ ] 7. FRONTEND: build the app and confirm it compiles under strict templates.
+      Files: (none — verification)
+      Verify: `cd /Users/irfan/Downloads/DashBoard-GenAI-master && npx ng build --configuration development`
+      completes with no TypeScript/template errors.
 
-- `apiUrl` is hard-coded to `http://localhost:8000` per the task default; it matches the backend's documented run port and the CORS allow-list already permits `http://localhost:4200`/`4201`.
-- The normalized→pixel conversion uses live canvas dimensions at draw time, matching manual-box behavior; no re-conversion on resize (parity with existing boxes), as specified.
-- All model output is treated as untrusted: empty detection lists and missing/non-finite box fields are guarded before pushing to `boxes`.
-- Reviewer stop contract unchanged: this plan is implemented by the existing loop; the reviewer writes `/Users/irfan/Downloads/DashBoard-GenAI-master/.agents/tasks/review.json` with `verdict` = `APPROVED` to stop.
+- [ ] 8. INTEGRATION: live backend exercise of the new label-persistence path.
+      Start the backend (`cd backend && uvicorn main:app --port 8000`), log in to get a JWT,
+      ensure at least one order exists (create via `POST /orders` if needed), then:
+      PUT a normalized label list to `/orders/<id>/labels` (expect 200 + OrderOut with those
+      detections), GET `/orders/<id>/detections` (expect the same boxes back), PUT a different
+      list (expect replacement, not append), and GET `/orders` (expect mapped list the
+      dashboard consumes). Confirm an ActivityLog "Saved N labels" entry via `GET /orders/activity`.
+      Files: (none — verification)
+      Verify: all four curl calls return the expected status/shape described above.
+
+Notes / assumptions:
+- JSON asset files are NOT deleted (per constraints); services simply stop reading them.
+- `StatusChartService`/`dataChart.json` and the login mock fallback are intentionally left
+  as-is — out of scope for this task.
+- If the backend has no seeded user, step 8 may require registering one via `POST /auth/register`
+  first; this is a data prerequisite, not a code gap.

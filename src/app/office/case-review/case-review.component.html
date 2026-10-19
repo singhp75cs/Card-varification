@@ -1,0 +1,85 @@
+<div class="case-review container py-4" *ngIf="detail as c">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Review {{ c.caseRef }} <span class="status-chip">{{ c.status }}</span></h3>
+    <button type="button" class="btn btn-outline-secondary" (click)="back()">Back to queue</button>
+  </div>
+
+  <div *ngIf="error" class="alert alert-danger">{{ error }}</div>
+
+  <!-- Details -->
+  <section class="card-block">
+    <h5>Applicant / Card Details</h5>
+    <dl class="detail-grid">
+      <dt>Applicant</dt><dd>{{ c.customerName || '—' }}</dd>
+      <dt>Card type</dt><dd>{{ c.verificationType || '—' }}</dd>
+      <dt>Card / Ref No.</dt><dd>{{ c.siteId || '—' }}</dd>
+      <dt>Address</dt><dd>{{ c.siteAddress || '—' }}</dd>
+      <dt>Contact / Mobile</dt><dd>{{ c.contact || '—' }}</dd>
+      <dt>Officer</dt><dd>{{ c.assignedOfficer || '—' }}</dd>
+      <dt>Submitted at</dt><dd>{{ c.capturedAt || '—' }}</dd>
+      <dt>Notes</dt><dd>{{ c.notes || '—' }}</dd>
+    </dl>
+  </section>
+
+  <!-- GPS -->
+  <section class="card-block">
+    <h5>GPS / Location</h5>
+    <p class="mb-0">
+      Status: <strong>{{ c.gpsStatus }}</strong>
+      <span *ngIf="c.latitude != null && c.longitude != null">
+        — ({{ c.latitude }}, {{ c.longitude }})
+      </span>
+    </p>
+  </section>
+
+  <!-- Photos -->
+  <section class="card-block">
+    <h5>Photos</h5>
+    <app-photo-gallery [photos]="c.photos"></app-photo-gallery>
+  </section>
+
+  <!-- Documents -->
+  <section class="card-block">
+    <h5>Documents</h5>
+    <ul class="doc-list">
+      <li *ngIf="!c.documents.length" class="text-muted small">No documents attached.</li>
+      <li *ngFor="let d of c.documents">
+        <span class="doc-type">{{ d.documentType }}</span>
+        <a [href]="absUrl(d.url)" target="_blank" rel="noopener">{{ d.originalName || 'Open document' }}</a>
+      </li>
+    </ul>
+  </section>
+
+  <!-- AI results -->
+  <section class="card-block">
+    <app-ai-results-view
+      [results]="c.aiResults"
+      [photos]="c.photos"
+      [documents]="c.documents">
+    </app-ai-results-view>
+  </section>
+
+  <!-- Actions -->
+  <section class="card-block">
+    <h5>Decision</h5>
+    <div *ngIf="!mode" class="action-bar">
+      <button type="button" class="btn btn-success me-2" (click)="openAction('approve')">Approve</button>
+      <button type="button" class="btn btn-danger me-2" (click)="openAction('reject')">Reject</button>
+      <button type="button" class="btn btn-warning" (click)="openAction('request-correction')">Request correction</button>
+    </div>
+
+    <div *ngIf="mode" class="action-form">
+      <label for="rv-comment" class="form-label">
+        Comment <span *ngIf="commentRequired" class="req">*</span>
+      </label>
+      <textarea id="rv-comment" rows="3" class="form-control mb-2"
+                name="comment" [(ngModel)]="comment"></textarea>
+      <button type="button" class="btn btn-primary me-2" [disabled]="busy" (click)="confirm()">
+        Confirm {{ mode }}
+      </button>
+      <button type="button" class="btn btn-outline-secondary" [disabled]="busy" (click)="cancelAction()">
+        Cancel
+      </button>
+    </div>
+  </section>
+</div>
